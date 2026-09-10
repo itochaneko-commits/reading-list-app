@@ -39,7 +39,25 @@ from dataclasses import dataclass
 
 from mock_data import MOCK_LIBRARY_SYSTEMS
 
-CALIL_APPKEY = os.environ.get("CALIL_APPKEY")  # 未設定ならモックモードで動作
+
+def _load_appkey() -> str | None:
+    """カーリルAPIキーを取得する。未設定ならモックモードで動作。
+
+    ローカルでは環境変数 CALIL_APPKEY、Streamlit Community Cloud では
+    アプリ設定の Secrets（st.secrets）どちらからでも読めるようにしておく。
+    """
+    key = os.environ.get("CALIL_APPKEY")
+    if key:
+        return key
+    try:
+        import streamlit as st
+
+        return st.secrets.get("CALIL_APPKEY")  # Secrets未設定でも例外にならない
+    except Exception:
+        return None
+
+
+CALIL_APPKEY = _load_appkey()
 
 # カーリルAPI自体のレスポンスには予約待ち人数は含まれていない（libkeyは
 # "貸出可"/"貸出中" 等のステータス文字列のみ）。ただし reserveurl（図書館の書誌詳細
