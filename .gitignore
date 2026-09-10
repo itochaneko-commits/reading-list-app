@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Streamlit secrets（APIキーなど。絶対にコミットしない）
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+
+# このアプリとは無関係のフォルダ（別プロジェクトの資料）
+note-ai-company/
