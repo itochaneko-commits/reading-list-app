@@ -69,6 +69,31 @@ st.markdown(
         margin: 0 !important;
         opacity: 0.95;
     }
+    /* Amazon/メルカリを横並びにするための行。st.columnsはスマホ幅だと
+       自動的に縦積みになってしまうため、素のHTMLリンクをflexで並べている。 */
+    .shop-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+    }
+    .shop-btn {
+        flex: 1;
+        text-align: center;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: white;
+        border: 1px solid #B6E4F5;
+        color: #0B3B5A !important;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-decoration: none !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .shop-btn:hover {
+        background: #EAF9FF;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -177,52 +202,65 @@ with st.sidebar:
 
 
 def render_book_card(book, availability, *, action: str | None) -> None:
-    """action: "add"（読書リストに追加）/ "remove"（読書リストから削除）/ None（なし）"""
+    """action: "add"（読書リストに追加）/ "remove"（読書リストから削除）/ None（なし）
+
+    スマホ幅では st.columns が縦積みになるため、左右2カラムのレイアウト
+    （情報｜ボタン）は「情報が全部並んだ後にボタンが全部並ぶ」だけになり、
+    しかも図書館ごとの見出し・名前・バッジが別々の行になって非常に縦長になっていた。
+    図書館は1館しかないので、名前とバッジを1行にまとめている。
+    Amazon/メルカリのボタンは st.columns だとスマホ幅で縦積みになってしまうため、
+    素のHTML（.shop-row）をflexで横並びにして1行に収めている。
+    """
     with st.container(border=True):
-        col_info, col_links = st.columns([3, 1])
+        st.markdown(f"**{book.title}**")
+        st.caption(book.author)
 
-        with col_info:
-            st.subheader(book.title)
-            st.caption(f"著者: {book.author} ／ ISBN13: {book.isbn13}")
+        for lib in availability:
+            st.markdown(
+                f"📍 {lib.library_name}　{render_status_pill(lib.status)}",
+                unsafe_allow_html=True,
+            )
+            # 待ち人数はステータス文字列（貸出可/貸出中）とは別に管理されているため、
+            # ステータスに関わらず waiting_count があれば表示する
+            # （例: 「貸出中」なのに5人予約待ち、ということが実際にある）。
+            # 0人待ちも意味のある値なので、Noneとの比較で判定する
+            # （if lib.waiting_count: だと 0 が偽として扱われ表示が消えてしまう）。
+            meta_bits = []
+            if lib.waiting_count is not None:
+                meta_bits.append(f"🔵 現在{lib.waiting_count}人予約待ち")
+            if lib.reserve_url:
+                meta_bits.append(f"[予約ページへ]({nakano_library_search_url()})")
+            if meta_bits:
+                st.caption(" ・ ".join(meta_bits))
 
-            st.markdown("**近隣図書館の蔵書状況**")
-            status_cols = st.columns(len(availability))
-            for c, lib in zip(status_cols, availability):
-                with c:
-                    st.markdown(f"**{lib.library_name}**")
-                    st.markdown(render_status_pill(lib.status), unsafe_allow_html=True)
-                    # 待ち人数はステータス文字列（貸出可/貸出中）とは別に管理されているため、
-                    # ステータスに関わらず waiting_count があれば表示する
-                    # （例: 「貸出中」なのに5人予約待ち、ということが実際にある）。
-                    # 0人待ちも意味のある値なので、Noneとの比較で判定する
-                    # （if lib.waiting_count: だと 0 が偽として扱われ表示が消えてしまう）。
-                    if lib.waiting_count is not None:
-                        st.caption(f"🔵 現在 {lib.waiting_count}人予約待ち")
-                    if lib.reserve_url:
-                        st.markdown(f"[予約ページへ]({nakano_library_search_url()})")
+        if action == "add":
+            already = is_in_reading_list(book.isbn13)
+            if st.button(
+                "✅ 追加済み" if already else "📚 読書リストに追加",
+                key=f"add-{book.isbn13}",
+                disabled=already,
+                use_container_width=True,
+            ):
+                add_to_reading_list(book)
+                st.rerun()
+        elif action == "remove":
+            if st.button(
+                "🗑 読書リストから削除",
+                key=f"remove-{book.isbn13}",
+                use_container_width=True,
+            ):
+                remove_from_reading_list(book.isbn13, book.title)
+                st.rerun()
 
-        with col_links:
-            if action == "add":
-                already = is_in_reading_list(book.isbn13)
-                if st.button(
-                    "✅ 追加済み" if already else "📚 読書リストに追加",
-                    key=f"add-{book.isbn13}",
-                    disabled=already,
-                    use_container_width=True,
-                ):
-                    add_to_reading_list(book)
-                    st.rerun()
-            elif action == "remove":
-                if st.button(
-                    "🗑 読書リストから削除",
-                    key=f"remove-{book.isbn13}",
-                    use_container_width=True,
-                ):
-                    remove_from_reading_list(book.isbn13, book.title)
-                    st.rerun()
-            st.markdown("**通販で探す**")
-            st.link_button("🛒 Amazonで検索", amazon_search_url(book.title, book.author), use_container_width=True)
-            st.link_button("📦 メルカリで検索", mercari_search_url(book.title), use_container_width=True)
+        st.markdown(
+            f"""
+            <div class="shop-row">
+                <a class="shop-btn" href="{amazon_search_url(book.title, book.author)}" target="_blank" rel="noopener">🛒 Amazon</a>
+                <a class="shop-btn" href="{mercari_search_url(book.title)}" target="_blank" rel="noopener">📦 メルカリ</a>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def render_book_list(books, *, action: str | None) -> None:
@@ -321,15 +359,11 @@ elif st.session_state.page == "reading_list":
 # 画面: 🕘 検索履歴
 # ============================================================
 elif st.session_state.page == "history":
-    col_title, col_clear = st.columns([4, 1])
-    with col_title:
-        st.subheader(f"🕘 検索履歴（{len(st.session_state.search_history)} 件）")
-    with col_clear:
-        if st.session_state.search_history:
-            st.write("")  # 見出しの高さ調整
-            if st.button("🗑 履歴をすべて削除", use_container_width=True):
-                st.session_state.search_history = []
-                st.rerun()
+    st.subheader(f"🕘 検索履歴（{len(st.session_state.search_history)} 件）")
+    if st.session_state.search_history:
+        if st.button("🗑 履歴をすべて削除", use_container_width=True):
+            st.session_state.search_history = []
+            st.rerun()
 
     if not st.session_state.search_history:
         st.info("まだ検索履歴がありません。「🔍 本を検索」から本を探してみましょう。")
@@ -338,16 +372,14 @@ elif st.session_state.page == "history":
         for display_i, entry in enumerate(reversed(history)):
             original_i = len(history) - 1 - display_i
             with st.container(border=True):
-                col_query, col_meta, col_redo, col_delete = st.columns([3, 2, 1, 1])
-                with col_query:
-                    st.markdown(f"**{entry['query']}**")
-                with col_meta:
-                    st.caption(f"{entry['count']} 件 ・ {entry['time'].strftime('%Y-%m-%d %H:%M:%S')}")
+                st.markdown(f"**{entry['query']}**")
+                st.caption(f"{entry['count']} 件 ・ {entry['time'].strftime('%Y-%m-%d %H:%M:%S')}")
+                col_redo, col_delete = st.columns(2)
                 with col_redo:
                     if st.button("🔁 再検索", key=f"redo-{original_i}", use_container_width=True):
                         go_to("search", prefill_query=entry["query"])
                 with col_delete:
-                    if st.button("🗑", key=f"del-hist-{original_i}", use_container_width=True):
+                    if st.button("🗑 削除", key=f"del-hist-{original_i}", use_container_width=True):
                         st.session_state.search_history.pop(original_i)
                         st.rerun()
 
