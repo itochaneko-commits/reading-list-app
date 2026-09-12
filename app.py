@@ -56,18 +56,30 @@ st.markdown(
     }
     .nakano-header {
         background: linear-gradient(90deg, #00B4D8 0%, #48CAE4 60%, #90E0EF 100%);
-        padding: 22px 28px;
-        border-radius: 24px;
+        padding: 14px 20px;
+        border-radius: 18px;
         color: white;
-        margin-bottom: 18px;
+        margin-bottom: 14px;
     }
     .nakano-header h1 {
         color: white !important;
-        margin: 0 0 6px 0 !important;
+        margin: 0 0 4px 0 !important;
+        font-size: 1.4rem !important;
+        line-height: 1.3 !important;
     }
     .nakano-header p {
         margin: 0 !important;
         opacity: 0.95;
+        font-size: 0.85rem;
+    }
+    /* さらに狭い画面ではもう一段小さく */
+    @media (max-width: 480px) {
+        .nakano-header h1 {
+            font-size: 1.15rem !important;
+        }
+        .nakano-header p {
+            font-size: 0.78rem;
+        }
     }
     /* Amazon/メルカリを横並びにするための行。st.columnsはスマホ幅だと
        自動的に縦積みになってしまうため、素のHTMLリンクをflexで並べている。 */
