@@ -325,14 +325,15 @@ if st.session_state.page == "search":
             results_area.empty()
             try:
                 with st.spinner("検索中..."):
-                    results = search_books(search_query)
+                    results, warnings = search_books(search_query)
                 error = False
             except BookSearchError:
-                results = []
+                results, warnings = [], []
                 error = True
             st.session_state.cached_query = search_query
             st.session_state.cached_results = results
             st.session_state.cached_error = error
+            st.session_state.cached_warnings = warnings
             if not error:
                 st.session_state.search_history.append(
                     {"query": search_query, "count": len(results), "time": datetime.now()}
@@ -340,11 +341,21 @@ if st.session_state.page == "search":
         else:
             results = st.session_state.cached_results
             error = st.session_state.cached_error
+            warnings = st.session_state.get("cached_warnings", [])
 
         with results_area.container():
             if error:
                 st.error("本の検索に失敗しました。ネットワーク接続を確認して、もう一度お試しください。")
             else:
+                if warnings:
+                    # 検索先の一部（OpenLibrary or NDLサーチ）が一時的に失敗している状態。
+                    # この場合に何も言わず「0件」とだけ出すと、本来ヒットするはずの本が
+                    # 無いように見えて誤解を招くため、はっきり伝えて再検索を促す。
+                    st.warning(
+                        "⚠️ 検索先の一部が一時的に利用できませんでした（" + " / ".join(warnings) + "）。"
+                        "本来ヒットするはずの本が表示されていない可能性があります。"
+                        "少し時間を置いてもう一度検索してみてください。"
+                    )
                 st.markdown(f"### 「{search_query}」の検索結果: {len(results)} 件")
                 if not results:
                     st.info("該当する本が見つかりませんでした。別のキーワードでお試しください。")

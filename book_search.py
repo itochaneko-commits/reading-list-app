@@ -223,11 +223,21 @@ def _search_ndl(query: str, max_results: int) -> list[Book]:
     return list(results_by_isbn.values())[:max_results]
 
 
-def search_books(query: str, max_results: int = 10) -> list[Book]:
-    """OpenLibraryとNDLサーチを両方検索し、ISBN13で重複排除して合成した結果を返す。"""
+def search_books(query: str, max_results: int = 10) -> tuple[list[Book], list[str]]:
+    """OpenLibraryとNDLサーチを両方検索し、ISBN13で重複排除して合成した結果を返す。
+
+    戻り値は (本のリスト, 警告メッセージのリスト)。
+    どちらか一方の検索先だけが失敗した場合、以前は失敗を握りつぶして
+    「もう片方の結果だけを黙って返す」実装になっていた。これだと、例えば
+    NDLサーチが一時的にタイムアウトしている間、NDLでしか見つからない本
+    （日本語の新しめの本など）が理由も分からず「0件」に見えてしまっていた。
+    そこで、失敗した検索先があれば警告メッセージとして一緒に返し、
+    呼び出し元（app.py）でユーザーに知らせられるようにしている。
+    両方失敗した場合のみ、結果がまったく無意味なので BookSearchError を送出する。
+    """
     query = query.strip()
     if not query:
-        return []
+        return [], []
 
     openlibrary_results: list[Book] = []
     openlibrary_error: Exception | None = None
@@ -246,6 +256,12 @@ def search_books(query: str, max_results: int = 10) -> list[Book]:
     if openlibrary_error is not None and ndl_error is not None:
         raise BookSearchError(f"{openlibrary_error} / {ndl_error}")
 
+    warnings: list[str] = []
+    if openlibrary_error is not None:
+        warnings.append("OpenLibraryへの問い合わせに失敗しました")
+    if ndl_error is not None:
+        warnings.append("国立国会図書館サーチへの問い合わせに失敗しました（一時的な可能性があります）")
+
     merged: list[Book] = []
     seen_isbns: set[str] = set()
     for book in [*openlibrary_results, *ndl_results]:
@@ -256,4 +272,4 @@ def search_books(query: str, max_results: int = 10) -> list[Book]:
         if len(merged) >= max_results:
             break
 
-    return merged
+    return merged, warnings
